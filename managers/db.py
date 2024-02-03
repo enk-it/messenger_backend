@@ -1,0 +1,378 @@
+import typing
+import psycopg2
+from psycopg2 import Error
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+import psycopg2.extras
+from typing import Annotated, Dict, Any, List
+from pyfiles.utils import generate_token
+from typing_extensions import Doc
+from fastapi import HTTPException
+
+
+# try:
+#     # Подключение к существующей базе данных
+#     connection = psycopg2.connect(user="silencer",
+#                                   password="swassswass",
+#                                   host="127.0.0.1",
+#                                   port="5432",
+#                                   dbname="messanger")
+#     cursor = connection.cursor()
+#     # Распечатать сведения о PostgreSQL
+#     # print("Информация о сервере PostgreSQL")
+#     # print(connection.get_dsn_parameters(), "\n")
+#     # Выполнение SQL-запроса
+#     cursor.execute("SELECT version();")
+#     # Получить результат
+#     record = cursor.fetchone()
+#     # print("Вы подключены к - ", record, "\n")
+# except (Exception, Error) as error:
+#     print("Ошибка при работе с PostgreSQL", error)
+
+
+class Manager:
+    def __init__(self):
+        # self.connection = psycopg2.connect(user="silencer",
+        #                                    password="swassswass",
+        #                                    host="127.0.0.1",
+        #                                    port="5432",
+        #                                    dbname="messenger")
+
+        self.connection = psycopg2.connect(user="jakiro",
+                                           password="swass",
+                                           host="192.168.0.17",
+                                           port="5432",
+                                           dbname="messenger")
+
+        self.get = Get(self.connection)
+        self.exist = Exist(self.connection)
+        self.create = Create(self.connection)
+
+
+class Get():
+    def __init__(self, connection):
+        self.connection = connection
+
+    def user_db(self, username: str = None, hashed_password: str = None, user_id: int = None) -> typing.Tuple:
+        if user_id is None and (username is None and hashed_password is None):
+            raise Exception('Bad Args')
+
+        if (username is not None) and (hashed_password is not None) and (user_id is not None):
+            raise Exception('Bad Args')
+
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        if user_id is not None:
+            query = f"SELECT * FROM public.users WHERE user_id=%s"
+            data = (user_id,)
+        else:
+            query = f"SELECT * FROM public.users WHERE username=%s and hashed_password=%s"
+            data = (username, hashed_password)
+
+        cursor.execute(query, data)
+        result = cursor.fetchone()
+        cursor.close()
+
+        if result is None:
+            return {}
+        else:
+            return dict(result)
+
+    def users_db(self) -> typing.List:
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        query = f"SELECT * FROM public.users"
+
+        cursor.execute(query)
+        result = cursor.fetchall()
+        cursor.close()
+        if result is None:
+            return []
+        else:
+            result = list(map(dict, result))
+            return result
+
+    def token_db(self, token: str) -> dict[Any, Any]:
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        query = f"SELECT * FROM public.tokens WHERE token='{token}'"
+        cursor.execute(query)
+        result = cursor.fetchone()
+        cursor.close()
+        if result is None:
+            return {}
+        else:
+            return dict(result)
+
+    def chats_db(self, user_id: int) -> List[Any]:
+        cursor = self.connection.cursor()
+        query = f"SELECT chat_id FROM public.party WHERE user_id={user_id}"
+        cursor.execute(query)
+        chat_ids = [i[0] for i in cursor.fetchall()]
+        cursor.close()
+
+        chats = []
+
+        for chat_id in chat_ids:
+            chat = self.chat_db(chat_id, user_id)
+            chats.append(chat)
+
+        return chats
+
+    def chat_db(self, chat_id: int, user_id: int):
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        query = f"SELECT * FROM public.chats WHERE chat_id={chat_id}"
+        cursor.execute(query)
+
+        chat = dict(cursor.fetchone())
+        cursor.close()
+
+        messages = self.messages_db(user_id, chat_id)  # todo
+        chat['messages'] = messages
+
+        if chat['is_private']:
+            chat['title'] = self.__interlocutor_username(chat_id, user_id)
+
+        return chat
+
+    def messages_db(self, user_id: int, chat_id: int, oldest_message_id: int = -1):
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        query = f"SELECT * FROM public.messages WHERE chat_id={chat_id} ORDER BY message_id DESC"
+        cursor.execute(query)
+
+        messages = []
+
+        for message in cursor.fetchall():
+            message = dict(message)
+
+            if (message['message_id'] < oldest_message_id) or (oldest_message_id == -1):
+                messages.append(message)
+            if len(messages) == 40:
+                break
+
+        # messages = [dict(message) for message in cursor.fetchall()]
+        # print(messages)
+        cursor.close()
+        return messages
+
+    def chat_participants(self, chat_id):
+        cursor = self.connection.cursor()
+        query = f"SELECT user_id FROM public.party WHERE chat_id={chat_id}"
+
+        cursor.execute(query)
+
+        result = cursor.fetchall()
+
+        cursor.close()
+
+        if result is None:
+            return []
+        else:
+            return [i[0] for i in result]
+
+    def __interlocutor_username(self, chat_id, user_id):
+        """gets one's user_id and returns his interlocutor's username. Works only in private chats"""
+        users = self.chat_participants(chat_id)
+        if len(users) != 2:
+            raise Exception('Critical Chat Error. Private chat doenst have 2 users')
+        users.remove(user_id)
+        interlocutor_id = users[0]
+
+        interlocutor = self.user_db(user_id=interlocutor_id)
+        return interlocutor['username']
+
+
+
+class Exist:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def user(self, user_id: int = None, username: str = None, email: str = None) -> bool:
+        cursor = self.connection.cursor()
+
+        if user_id is not None:
+            query = f"SELECT * FROM public.users WHERE user_id={user_id}"
+        elif username is not None:
+            query = f"SELECT * FROM public.users WHERE username='{username}'"
+        elif email is not None:
+            query = f"SELECT * FROM public.users WHERE email='{email}'"
+
+        cursor.execute(query)
+        result = cursor.fetchone()
+        cursor.close()
+
+        return result is not None
+
+    def private_chat(self, user_1, user_2):
+        cursor = self.connection.cursor()
+
+        query = f"SELECT chat_id from public.party WHERE user_id={user_1};"
+        cursor.execute(query)
+        user_1_chats = set(cursor.fetchall())
+        if user_1_chats == set():
+            return False
+
+        query = f"SELECT chat_id from public.party WHERE user_id={user_2};"
+        cursor.execute(query)
+        user_2_chats = set(cursor.fetchall())
+        if user_2_chats == set():
+            return False
+
+        query = f"SELECT chat_id from public.chats WHERE is_private=true;"
+        cursor.execute(query)
+        private_chats = set(cursor.fetchall())
+        if private_chats == set():
+            return False
+
+        users_common_chats = user_1_chats.intersection(user_2_chats)
+        if users_common_chats == set():
+            return False
+
+        users_private_chat = users_common_chats.intersection(private_chats)
+        if users_private_chat == set():
+            return False
+
+        if len(users_private_chat) > 1:
+            raise Exception('More than one private chat for current users')
+
+        return True
+
+
+class Create:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def user(self, username, hashed_password) -> int:
+        """creates new user and returns its user_id"""
+        cursor = self.connection.cursor()
+
+        query = "INSERT INTO public.users (username, hashed_password) VALUES (%s, %s) RETURNING user_id"
+
+        data = (username, hashed_password)
+
+        cursor.execute(query, data)
+        result = cursor.fetchone()
+        cursor.close()
+        self.connection.commit()
+        return result[0]
+
+    def token(self, user_id, client_id):
+        token = generate_token()
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        query = f"INSERT INTO public.tokens (token, user_id, client_id, is_disabled) VALUES (%s, %s, %s, %s) RETURNING *"
+        data = (token, user_id, client_id, False)
+        cursor.execute(query, data)
+        self.connection.commit()
+        result = cursor.fetchone()
+        cursor.close()
+
+        return dict(result)
+
+    def message(self, user_id, chat_id, content, datetime):
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        message_id = self.__last_message_id(chat_id) + 1
+
+        query = "INSERT INTO public.messages (message_id, chat_id, user_id, content, datetime) VALUES (%s, %s, %s, %s, %s) RETURNING *"
+
+        data = (message_id, chat_id, user_id, content, datetime)
+        cursor.execute(query, data)
+        self.connection.commit()
+
+        result = cursor.fetchone()
+
+        cursor.close()
+        return dict(result)
+
+    def chat(self, user_1, user_2):
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        new_chat_id = self.__last_chat_id() + 1
+
+        query = "INSERT INTO public.party (chat_id, user_id) VALUES (%s, %s);"
+
+        data = (new_chat_id, user_1)
+        cursor.execute(query, data)
+
+        data = (new_chat_id, user_2)
+        cursor.execute(query, data)
+
+        query = "INSERT INTO public.chats (chat_id, title, is_private) VALUES (%s, %s, %s) RETURNING *;"
+        data = (new_chat_id, '', True)
+        cursor.execute(query, data)
+
+        self.connection.commit()
+        result = cursor.fetchone()
+        cursor.close()
+
+        return dict(result)
+
+    def __last_message_id(self, chat_id):
+        cursor = self.connection.cursor()
+
+        query = f"SELECT message_id FROM public.messages WHERE chat_id={chat_id} ORDER BY message_id DESC fetch first 1 rows only;"
+
+        cursor.execute(query)
+        result = cursor.fetchone()
+        cursor.close()
+        if result is None:
+            return 0
+        else:
+            return result[0]
+
+    def __last_chat_id(self):
+        cursor = self.connection.cursor()
+
+        query = f"SELECT chat_id FROM public.chats ORDER BY chat_id DESC fetch first 1 rows only;"
+
+        cursor.execute(query)
+        result = cursor.fetchone()
+        cursor.close()
+        if result is None:
+            return 0
+        else:
+            return result[0]
+
+
+manager = Manager()
+
+#
+# def get_user() -> typing.Iterable:
+#     cursor = connection.cursor()
+#
+#     if user_id is not None:
+#         query = f"SELECT * FROM USERS WHERE user_id={user_id}"
+#     elif username is not None:
+#         query = f"SELECT * FROM USERS WHERE username='{username}'"
+#     elif email is not None:
+#         query = f"SELECT * FROM USERS WHERE email='{email}'"
+#
+#     cursor.execute(query)
+#     result = cursor.fetchone()
+#     cursor.close()
+#     return result
+
+
+# def disable_token(token: str) -> None:
+#     cursor = connection.cursor()
+#     query = f"UPDATE public.tokens SET is_disabled=true WHERE token={token}"
+#     cursor.execute(query)
+#     cursor.close()
+#
+#
+# def update_user_column(column: str, value: str | int | bool, user_id: int) -> None:
+#     cursor = connection.cursor()
+#     query = f"UPDATE public.users SET {column}={value} WHERE user_id={user_id}"
+#     cursor.execute(query)
+#     cursor.close()
+
+
+if __name__ == '__main__':
+    print(manager.get.user_db(username='natures', hashed_password='swass'))
+
+if __name__ == '__main__':
+    # print(tuple(request.model_dump(mode='dicts').values()))
+    # print(get_chats_data(23))
+    # print(get_last_message_id(user_id=23, chat_id=4))
+    # print(get_chat_participants(chat_id=4))
+    # print(create_message(23, 4, 'test messag2', 1706190200))
+    # print(private_chat_exist(23, 26))
+    pass

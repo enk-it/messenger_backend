@@ -1,0 +1,12 @@
+[Unit]
+Description=messenger backend daemon
+After=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/jakiro/messenger_backend/
+ExecStart=/home/jakiro/messenger_backend/venv/bin/python3 main.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,7 @@
 import typing
 
 from models.models import WsUser, User, Token, ChatView
+from models.response import WsNewMessage, WsNewChat
 from fastapi import WebSocket, WebSocketDisconnect, WebSocketException
 from typing import List
 # from managers.db import get_token_db, get_user_by_user_id, get_chat_participants, get_chat_db
@@ -82,8 +83,13 @@ async def notify_new_message(new_message, chat_participants):
         participant_wss = get_user_ws(participant)
         connections.extend(participant_wss)
 
+    data = WsNewMessage(message=new_message)
+
     for connection in connections:
-        await connection.websocket.send_text(new_message.model_dump_json())
+
+        data.message.incoming = data.message.user_id != connection.user.token.user_id
+
+        await connection.websocket.send_text(data.model_dump_json())
 
 
 async def notify_new_chat(new_chat):
@@ -95,8 +101,10 @@ async def notify_new_chat(new_chat):
         participant_wss = get_user_ws(participant)
         connections.extend(participant_wss)
 
+    data = WsNewChat(chat=new_chat)
+
     for connection in connections:
-        await connection.websocket.send_text(new_chat.model_dump_json())
+        await connection.websocket.send_text(data.model_dump_json())
 
 # async def send_personal_message(message: str, websocket: WebSocket):
 #     await websocket.send_text(message)

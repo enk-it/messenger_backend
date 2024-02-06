@@ -19,3 +19,14 @@ class ResponseMessages(BaseModel):
 
 class ResponseUsers(BaseModel):
     users: List[PublicUser]
+
+
+class WsNewMessage(BaseModel):
+    info: str = 'newMessage'
+    message: Message
+
+
+class WsNewChat(BaseModel):
+    info: str = 'newChat'
+    chat: ChatView
+

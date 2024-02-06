@@ -7,6 +7,7 @@ from typing import Annotated, Dict, Any, List
 from pyfiles.utils import generate_token
 from typing_extensions import Doc
 from fastapi import HTTPException
+import datetime
 
 
 # try:
@@ -103,6 +104,9 @@ class Get():
             return dict(result)
 
     def chats_db(self, user_id: int) -> List[Any]:
+        """returns list with chats. Each chat contains filed messages, where each message contains fields: \n user_id,\n
+                 chat_id,\n message_id,\n content,\n datetime,\n  is_read, \n  incoming. \nNeeds both chat_id and user_id
+                 because different users can have different messages statuses (e.g. read/deleted) """
         cursor = self.connection.cursor()
         query = f"SELECT chat_id FROM public.party WHERE user_id={user_id}"
         cursor.execute(query)
@@ -118,6 +122,9 @@ class Get():
         return chats
 
     def chat_db(self, chat_id: int, user_id: int):
+        """returns single chat. Chat contains filed messages, where each message contains fields: \n user_id,\n
+         chat_id,\n message_id,\n content,\n datetime,\n  is_read, \n  incoming. \nNeeds both chat_id and user_id
+         because different users can have different messages statuses (e.g. read/deleted) """
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         query = f"SELECT * FROM public.chats WHERE chat_id={chat_id}"
         cursor.execute(query)
@@ -134,14 +141,42 @@ class Get():
         return chat
 
     def messages_db(self, user_id: int, chat_id: int, oldest_message_id: int = -1):
-        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        query = f"SELECT * FROM public.messages WHERE chat_id={chat_id} ORDER BY message_id DESC"
-        cursor.execute(query)
+        """returns list with messages, where each message contains fields: \n
+        user_id, \n
+        chat_id, \n
+        message_id, \n
+        content, \n
+        datetime, \n
+        is_read, \n
+        incoming"""
+        messages_cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        # query = f"SELECT * FROM public.messages, public.statuses WHERE public.messages.chat_id={chat_id} AND public.statuses.is_deleted=false ORDER BY public.messages.message_id DESC"
 
+        query = f"""SELECT public.messages.user_id, public.messages.message_id, public.messages.content, public.messages.datetime, is_read FROM public.messages, public.statuses WHERE 
+public.messages.chat_id={chat_id} AND 
+public.statuses.user_id={user_id} AND 
+public.statuses.chat_id={chat_id} AND 
+public.statuses.message_id=public.messages.message_id AND
+public.statuses.is_deleted=false 
+ORDER BY public.messages.message_id DESC;"""
+
+
+        messages_cursor.execute(query)
         messages = []
-
-        for message in cursor.fetchall():
+        statuses_cursor = self.connection.cursor()
+        for message in messages_cursor.fetchall():
             message = dict(message)
+
+            # query = f"SELECT is_read FROM public.statuses WHERE chat_id=%s AND user_id=%s and message_id=%s and is_deleted=%s"
+            # data = (chat_id, user_id, message['message_id'], False)
+            # statuses_cursor.execute(query, data)
+            #
+            # is_read = statuses_cursor.fetchone()[0]
+            # message['is_read'] = is_read
+
+            message['chat_id'] = chat_id
+
+            message['incoming'] = message['user_id'] != user_id
 
             if (message['message_id'] < oldest_message_id) or (oldest_message_id == -1):
                 messages.append(message)
@@ -150,10 +185,12 @@ class Get():
 
         # messages = [dict(message) for message in cursor.fetchall()]
         # print(messages)
-        cursor.close()
+        messages_cursor.close()
+        statuses_cursor.close()
         return messages
 
     def chat_participants(self, chat_id):
+        """takes chat_id and returns list with that chat's participant's ids"""
         cursor = self.connection.cursor()
         query = f"SELECT user_id FROM public.party WHERE chat_id={chat_id}"
 
@@ -178,7 +215,6 @@ class Get():
 
         interlocutor = self.user_db(user_id=interlocutor_id)
         return interlocutor['username']
-
 
 
 class Exist:
@@ -240,47 +276,74 @@ class Create:
     def __init__(self, connection):
         self.connection = connection
 
-    def user(self, username, hashed_password) -> int:
+    def user(self, username, hashed_password):
         """creates new user and returns its user_id"""
         cursor = self.connection.cursor()
 
-        query = "INSERT INTO public.users (username, hashed_password) VALUES (%s, %s) RETURNING user_id"
+        date = int(datetime.datetime.timestamp(datetime.datetime.now()))
 
-        data = (username, hashed_password)
+        query = "INSERT INTO public.users (username, hashed_password, last_login) VALUES (%s, %s, %s) RETURNING user_id"
+
+        data = (username, hashed_password, date)
 
         cursor.execute(query, data)
-        result = cursor.fetchone()
+        user_id = cursor.fetchone()[0]
         cursor.close()
         self.connection.commit()
-        return result[0]
+
+        result = {
+            'user_id': user_id,
+            'username': username,
+            'last_login': date
+        }
+
+        return result
 
     def token(self, user_id, client_id):
         token = generate_token()
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        query = f"INSERT INTO public.tokens (token, user_id, client_id, is_disabled) VALUES (%s, %s, %s, %s) RETURNING *"
+        query = f"INSERT INTO public.tokens (token, user_id, client_id, is_disabled) VALUES (%s, %s, %s, %s)"
         data = (token, user_id, client_id, False)
         cursor.execute(query, data)
         self.connection.commit()
-        result = cursor.fetchone()
         cursor.close()
 
-        return dict(result)
+        result = {
+            'token': token,
+            'user_id': user_id,
+            'client_id': client_id,
+            'is_disabled': False
+        }
 
-    def message(self, user_id, chat_id, content, datetime):
+        return result
+
+    def message(self, user_id, chat_id, content, datetime, chat_participants):
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         message_id = self.__last_message_id(chat_id) + 1
 
-        query = "INSERT INTO public.messages (message_id, chat_id, user_id, content, datetime) VALUES (%s, %s, %s, %s, %s) RETURNING *"
-
+        query = "INSERT INTO public.messages (message_id, chat_id, user_id, content, datetime) VALUES (%s, %s, %s, %s, %s)"
         data = (message_id, chat_id, user_id, content, datetime)
         cursor.execute(query, data)
         self.connection.commit()
 
-        result = cursor.fetchone()
+        for chat_part_user_id in chat_participants:
+            # todo updating for all chat paricipants
+            query = "INSERT INTO public.statuses (user_id, chat_id, message_id, is_deleted, is_read) VALUES (%s, %s, %s, %s, %s)"
+            data = (chat_part_user_id, chat_id, message_id, False, False)
+            cursor.execute(query, data)
+
+        self.connection.commit()
+
+
+
 
         cursor.close()
-        return dict(result)
+
+        result = {'message_id': message_id, 'chat_id': chat_id, 'user_id': user_id, 'content': content,
+                  'datetime': datetime, 'is_read': False}
+
+        return result
 
     def chat(self, user_1, user_2):
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -295,15 +358,19 @@ class Create:
         data = (new_chat_id, user_2)
         cursor.execute(query, data)
 
-        query = "INSERT INTO public.chats (chat_id, title, is_private) VALUES (%s, %s, %s) RETURNING *;"
+        query = "INSERT INTO public.chats (chat_id, title, is_private) VALUES (%s, %s, %s);"
         data = (new_chat_id, '', True)
         cursor.execute(query, data)
-
         self.connection.commit()
-        result = cursor.fetchone()
         cursor.close()
 
-        return dict(result)
+        result = {
+            'chat_id': new_chat_id,
+            'title': '',
+            'is_private': True
+        }
+
+        return result
 
     def __last_message_id(self, chat_id):
         cursor = self.connection.cursor()

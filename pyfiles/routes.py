@@ -13,7 +13,7 @@ from managers.auth import authenticate_user
 
 from models.requests import RegisterData, LoginData, SendData
 from models.response import ResponseBearerToken, ResponseChats, ResponseMessages, ResponseUsers
-from models.models import User, Token, WsUser, Message, ChatView
+from models.models import User, Token, WsUser, Message, ChatView, PublicUser
 
 import datetime
 from typing import Annotated
@@ -32,8 +32,9 @@ async def login(request: LoginData) -> ResponseBearerToken:
 
 @router.post("/register/")
 async def register(request: RegisterData) -> ResponseBearerToken:
-    user_id = db_man.create.user(request.username, request.hashed_password)
-    token_db = db_man.create.token(user_id, request.client_id)
+    user_db = db_man.create.user(request.username, request.hashed_password)
+    user = PublicUser(**user_db)
+    token_db = db_man.create.token(user.user_id, request.client_id)
     bearer_token = ResponseBearerToken(**token_db)
 
     return bearer_token
@@ -80,16 +81,15 @@ async def send_message(request: SendData, user: Annotated[User, Depends(authenti
     if user.token.user_id not in chat_participants:
         raise HTTPException(status_code=403, detail='You have no access in this chat')
 
-    time = datetime.datetime.timestamp(datetime.datetime.now())  # current time in timestamp
+    time = int(datetime.datetime.timestamp(datetime.datetime.now()))  # current time in timestamp
 
-    message_db = db_man.create.message(user.token.user_id, request.chat_id, request.content, time)
+    message_db = db_man.create.message(user.token.user_id, request.chat_id, request.content, time, chat_participants)
 
     new_message = Message(**message_db)
 
     await notify_new_message(new_message, chat_participants)
 
     return {'ok': True}
-
 
 @router.get("/start_chat/")
 async def start_chat(user_id: int, user: Annotated[User, Depends(authenticate_user)]):
@@ -120,17 +120,17 @@ async def websocket_endpoint(websocket: WebSocket) -> None:  # , user: Annotated
     # print(user)
     await connect(websocket)
     try:
-        await websocket.send_text('Provide your Bearer token')
+        await websocket.send_text('{"info":"Provide your Bearer token"}')
         data = await websocket.receive_text()
 
         await authenticate_ws(websocket, data)
 
-        await websocket.send_text('Auth succeeded')
+        await websocket.send_text('{"info":"Auth succeeded"}')
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
         disconnect(websocket)
     except Exception as e:
-        await websocket.send_text(str(e))
+        await websocket.send_text('{"error":{error}}'.format(error=e))
         disconnect(websocket)
         await websocket.close()

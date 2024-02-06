@@ -15,7 +15,7 @@ class Token(BaseModel):
 
 class PublicUser(BaseModel):
     username: str = Field(min_length=6, max_length=24)
-    last_login: int | None
+    last_login: int | None = None
     user_id: int
     is_online: bool | None = None
 
@@ -42,6 +42,10 @@ class Message(BaseModel):
     user_id: int
     content: str
     datetime: int
+
+    incoming: bool | None = None
+
+    is_read: bool
 
 
 class ChatView(BaseModel):

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Depends
 
-# from managers.db import create_user, create_token, create_message, create_new_chat
-# from managers.db import get_user_db, get_chats_db, get_messages_db, get_chat_participants, get_users_db
+from fastapi.responses import FileResponse
 
 from managers.db import manager as db_man
 
@@ -19,6 +18,12 @@ import datetime
 from typing import Annotated
 
 router = APIRouter()
+
+
+@router.get("/share/avatar/{url}")
+async def get_avatar(url: str) -> FileResponse:
+    return FileResponse('./share/' + url)
+
 
 
 @router.post("/login/")
@@ -90,6 +95,7 @@ async def send_message(request: SendData, user: Annotated[User, Depends(authenti
     await notify_new_message(new_message, chat_participants)
 
     return {'ok': True}
+
 
 @router.get("/start_chat/")
 async def start_chat(user_id: int, user: Annotated[User, Depends(authenticate_user)]):

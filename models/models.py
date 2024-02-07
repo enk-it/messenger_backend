@@ -18,6 +18,7 @@ class PublicUser(BaseModel):
     last_login: int | None = None
     user_id: int
     is_online: bool | None = None
+    avatar_url: str
 
 
 class User(PublicUser):
@@ -51,6 +52,7 @@ class Message(BaseModel):
 class ChatView(BaseModel):
     chat_id: int
     title: str | None = None
+    avatar_url: str | None = None
     is_private: bool
 
     messages: List[Message] | None = None

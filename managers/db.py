@@ -137,6 +137,7 @@ class Get():
 
         if chat['is_private']:
             chat['title'] = self.__interlocutor_username(chat_id, user_id)
+            chat['avatar_url'] = self.__interlocutor_avatar_url(chat_id, user_id)
 
         return chat
 
@@ -159,7 +160,6 @@ public.statuses.chat_id={chat_id} AND
 public.statuses.message_id=public.messages.message_id AND
 public.statuses.is_deleted=false 
 ORDER BY public.messages.message_id DESC;"""
-
 
         messages_cursor.execute(query)
         messages = []
@@ -204,6 +204,33 @@ ORDER BY public.messages.message_id DESC;"""
             return []
         else:
             return [i[0] for i in result]
+
+    def user_avatar_url(self, user_id):
+        """returns avatar's url for current user"""
+
+        cursor = self.connection.cursor()
+        query = f"SELECT avatar_url FROM public.users WHERE user_id=%s;"
+
+        data = (user_id,)
+
+        cursor.execute(query, data)
+
+        result = cursor.fetchone()[0]
+
+        cursor.close()
+        return result
+
+    def __interlocutor_avatar_url(self, chat_id, user_id):
+        """gets one's user_id and returns his interlocutor's username. Works only in private chats"""
+        users = self.chat_participants(chat_id)
+        if len(users) != 2:
+            raise Exception('Critical Chat Error. Private chat doenst have 2 users')
+        users.remove(user_id)
+        interlocutor_id = users[0]
+
+        interlocutor = self.user_db(user_id=interlocutor_id)
+        return interlocutor['avatar_url']
+
 
     def __interlocutor_username(self, chat_id, user_id):
         """gets one's user_id and returns his interlocutor's username. Works only in private chats"""
@@ -328,15 +355,11 @@ class Create:
         self.connection.commit()
 
         for chat_part_user_id in chat_participants:
-            # todo updating for all chat paricipants
             query = "INSERT INTO public.statuses (user_id, chat_id, message_id, is_deleted, is_read) VALUES (%s, %s, %s, %s, %s)"
             data = (chat_part_user_id, chat_id, message_id, False, False)
             cursor.execute(query, data)
 
         self.connection.commit()
-
-
-
 
         cursor.close()
 
@@ -433,7 +456,8 @@ manager = Manager()
 
 
 if __name__ == '__main__':
-    print(manager.get.user_db(username='natures', hashed_password='swass'))
+    # print(manager.get.user_db(username='natures', hashed_password='swass'))
+    print(manager.get.user_avatar_url(user_id=210))
 
 if __name__ == '__main__':
     # print(tuple(request.model_dump(mode='dicts').values()))

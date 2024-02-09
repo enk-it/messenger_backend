@@ -1,9 +1,8 @@
-import json
-
-from pydantic import BaseModel, EmailStr, model_validator, Field, ConfigDict
+from pydantic import BaseModel, model_validator, Field, ConfigDict
 from fastapi import WebSocket
-from managers.db import manager as db_man
+from managers.db import db_man
 from typing import List
+from fastapi import UploadFile, HTTPException
 
 
 class Token(BaseModel):
@@ -29,11 +28,11 @@ class User(PublicUser):
     def check_username(self) -> 'User':
         username = self.username
         if not username:
-            raise ValueError('Username can not be empty')
+            raise HTTPException(status_code=400, detail='Username can not be empty')
         if ' ' in username or '\n' in username:
-            raise ValueError('Username can not contain whitespaces')
+            raise HTTPException(status_code=400, detail='Username can not contain whitespaces')
         if not db_man.exist.user(username=username):
-            raise ValueError('No user found with this credentials')
+            raise HTTPException(status_code=400, detail='No user found with this credentials')
         return self
 
 
@@ -64,6 +63,22 @@ class WsUser(BaseModel):
     user: User | None = None
     websocket: WebSocket
     auth: bool = False
+
+
+class JPEGImage(BaseModel):
+    file: UploadFile
+
+    @model_validator(mode='after')
+    def check_file(self) -> 'JPEGImage':
+        file = self.file
+        if not file:
+            raise HTTPException(status_code=400, detail='File cannot be empty')
+        if file.content_type != 'image/jpeg':
+            raise HTTPException(status_code=400, detail="Bad file extension. Only jpeg is allowed")
+        if file.size > 10485760:
+            raise HTTPException(status_code=400, detail="Too large file. 10MB is maximum size allowed for avatars images")
+
+        return self
 
 
 if __name__ == '__main__':

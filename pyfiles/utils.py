@@ -5,4 +5,6 @@ def generate_token():
     return str(uuid4()) + '-' + str(uuid4())
 
 
-# print(generate_token())
+def generate_name():
+    return str(uuid4())
+

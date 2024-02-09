@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, model_validator, field_validator, Field
-from managers.db import manager as db_man
+from pydantic import BaseModel, model_validator, Field
+from managers.db import db_man
 from fastapi import HTTPException
 
 
@@ -77,4 +77,3 @@ class SendData(BaseModel):
     chat_id: int
     content: str
 
-# RegisterData(username='asdasd', client_id='asd', hashed_password='asd')

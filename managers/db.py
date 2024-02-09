@@ -1,33 +1,8 @@
 import typing
 import psycopg2
-from psycopg2 import Error
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 import psycopg2.extras
-from typing import Annotated, Dict, Any, List
-from pyfiles.utils import generate_token
-from typing_extensions import Doc
-from fastapi import HTTPException
+from typing import Any, List
 import datetime
-
-
-# try:
-#     # Подключение к существующей базе данных
-#     connection = psycopg2.connect(user="silencer",
-#                                   password="swassswass",
-#                                   host="127.0.0.1",
-#                                   port="5432",
-#                                   dbname="messanger")
-#     cursor = connection.cursor()
-#     # Распечатать сведения о PostgreSQL
-#     # print("Информация о сервере PostgreSQL")
-#     # print(connection.get_dsn_parameters(), "\n")
-#     # Выполнение SQL-запроса
-#     cursor.execute("SELECT version();")
-#     # Получить результат
-#     record = cursor.fetchone()
-#     # print("Вы подключены к - ", record, "\n")
-# except (Exception, Error) as error:
-#     print("Ошибка при работе с PostgreSQL", error)
 
 
 class Manager:
@@ -44,9 +19,17 @@ class Manager:
                                            port="5432",
                                            dbname="messenger")
 
+        cursor = self.connection.cursor()
+        print("Информация о сервере PostgreSQL")
+        print(self.connection.get_dsn_parameters(), "\n")
+        cursor.execute("SELECT version();")
+        record = cursor.fetchone()
+        print("Вы подключены к - ", record, "\n")
+
         self.get = Get(self.connection)
         self.exist = Exist(self.connection)
         self.create = Create(self.connection)
+        self.update = Update(self.connection)
 
 
 class Get():
@@ -231,7 +214,6 @@ ORDER BY public.messages.message_id DESC;"""
         interlocutor = self.user_db(user_id=interlocutor_id)
         return interlocutor['avatar_url']
 
-
     def __interlocutor_username(self, chat_id, user_id):
         """gets one's user_id and returns his interlocutor's username. Works only in private chats"""
         users = self.chat_participants(chat_id)
@@ -326,8 +308,7 @@ class Create:
 
         return result
 
-    def token(self, user_id, client_id):
-        token = generate_token()
+    def token(self, user_id, client_id, token):
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         query = f"INSERT INTO public.tokens (token, user_id, client_id, is_disabled) VALUES (%s, %s, %s, %s)"
         data = (token, user_id, client_id, False)
@@ -344,13 +325,15 @@ class Create:
 
         return result
 
-    def message(self, user_id, chat_id, content, datetime, chat_participants):
+    def message(self, user_id, chat_id, content, chat_participants):
+        time = int(datetime.datetime.timestamp(datetime.datetime.now()))
+
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         message_id = self.__last_message_id(chat_id) + 1
 
         query = "INSERT INTO public.messages (message_id, chat_id, user_id, content, datetime) VALUES (%s, %s, %s, %s, %s)"
-        data = (message_id, chat_id, user_id, content, datetime)
+        data = (message_id, chat_id, user_id, content, time)
         cursor.execute(query, data)
         self.connection.commit()
 
@@ -364,7 +347,7 @@ class Create:
         cursor.close()
 
         result = {'message_id': message_id, 'chat_id': chat_id, 'user_id': user_id, 'content': content,
-                  'datetime': datetime, 'is_read': False}
+                  'datetime': time, 'is_read': False}
 
         return result
 
@@ -422,42 +405,27 @@ class Create:
             return result[0]
 
 
-manager = Manager()
+class Update:
+    def __init__(self, connection):
+        self.connection = connection
 
-#
-# def get_user() -> typing.Iterable:
-#     cursor = connection.cursor()
-#
-#     if user_id is not None:
-#         query = f"SELECT * FROM USERS WHERE user_id={user_id}"
-#     elif username is not None:
-#         query = f"SELECT * FROM USERS WHERE username='{username}'"
-#     elif email is not None:
-#         query = f"SELECT * FROM USERS WHERE email='{email}'"
-#
-#     cursor.execute(query)
-#     result = cursor.fetchone()
-#     cursor.close()
-#     return result
+    def user_avatar(self, user_id, file_name):
+        cursor = self.connection.cursor()
+
+        query = "UPDATE public.users SET avatar_url=%s WHERE user_id=%s;"
+
+        data = (file_name, user_id)
+
+        cursor.execute(query, data)
+        cursor.close()
+        self.connection.commit()
 
 
-# def disable_token(token: str) -> None:
-#     cursor = connection.cursor()
-#     query = f"UPDATE public.tokens SET is_disabled=true WHERE token={token}"
-#     cursor.execute(query)
-#     cursor.close()
-#
-#
-# def update_user_column(column: str, value: str | int | bool, user_id: int) -> None:
-#     cursor = connection.cursor()
-#     query = f"UPDATE public.users SET {column}={value} WHERE user_id={user_id}"
-#     cursor.execute(query)
-#     cursor.close()
-
+db_man = Manager()
 
 if __name__ == '__main__':
     # print(manager.get.user_db(username='natures', hashed_password='swass'))
-    print(manager.get.user_avatar_url(user_id=210))
+    print(db_man.get.user_avatar_url(user_id=210))
 
 if __name__ == '__main__':
     # print(tuple(request.model_dump(mode='dicts').values()))

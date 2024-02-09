@@ -1,21 +1,19 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Depends
-
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile
 from fastapi.responses import FileResponse
 
-from managers.db import manager as db_man
-
-from managers.ws import connect, disconnect, authenticate_ws
-from managers.ws import get_online_users
-from managers.ws import notify_new_message, notify_new_chat
-
+from managers.db import db_man
+from managers.ws import ws_man
 from managers.auth import authenticate_user
 
 from models.requests import RegisterData, LoginData, SendData
 from models.response import ResponseBearerToken, ResponseChats, ResponseMessages, ResponseUsers
-from models.models import User, Token, WsUser, Message, ChatView, PublicUser
+from models.models import User, Token, WsUser, Message, ChatView, PublicUser, JPEGImage
 
-import datetime
+from pyfiles.utils import generate_name, generate_token
+
 from typing import Annotated
+from PIL import Image
+import io
 
 router = APIRouter()
 
@@ -25,11 +23,27 @@ async def get_avatar(url: str) -> FileResponse:
     return FileResponse('./share/' + url)
 
 
+@router.post("/set_avatar/")
+async def set_avatar(file: UploadFile, user: Annotated[User, Depends(authenticate_user)]):
+    image = JPEGImage(file=file)
+    contents = await image.file.read()
+    pil_image = Image.open(io.BytesIO(contents))
+    try:
+        Image.open(io.BytesIO(contents)).verify()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail='Bad File Error. Check if your file broken and try again later.')
+
+    filename = generate_name() + '.jpg'
+    pil_image.save('./share/' + filename)
+    db_man.update.user_avatar(user_id=user.token.user_id, avatar=filename)
+
+    return {'ok': True, 'filename': filename}
+
 
 @router.post("/login/")
 async def login(request: LoginData) -> ResponseBearerToken:
     user = User(**db_man.get.user_db(request.username, request.hashed_password))
-    token_db = db_man.create.token(user.user_id, request.client_id)
+    token_db = db_man.create.token(user.user_id, request.client_id, generate_token())
     bearer_token = ResponseBearerToken(**token_db)
 
     return bearer_token  # {"token": bearer_token}
@@ -39,7 +53,7 @@ async def login(request: LoginData) -> ResponseBearerToken:
 async def register(request: RegisterData) -> ResponseBearerToken:
     user_db = db_man.create.user(request.username, request.hashed_password)
     user = PublicUser(**user_db)
-    token_db = db_man.create.token(user.user_id, request.client_id)
+    token_db = db_man.create.token(user.user_id, request.client_id, generate_token())
     bearer_token = ResponseBearerToken(**token_db)
 
     return bearer_token
@@ -53,7 +67,7 @@ async def get_chats(user: Annotated[User, Depends(authenticate_user)]) -> Respon
 @router.get("/get_users/")
 async def get_users(user: Annotated[User, Depends(authenticate_user)]) -> ResponseUsers:
     users_data = db_man.get.users_db()
-    online_users = get_online_users()
+    online_users = ws_man.get.online_users()
 
     response = ResponseUsers(users=users_data)
 
@@ -61,8 +75,6 @@ async def get_users(user: Annotated[User, Depends(authenticate_user)]) -> Respon
         for user in response.users:
             if user.user_id == online_user:
                 user.is_online = True
-
-    print(users_data)
 
     return response
     # return ResponseUsers(chats=get_chats_db(user_id=user.token.user_id))
@@ -86,13 +98,11 @@ async def send_message(request: SendData, user: Annotated[User, Depends(authenti
     if user.token.user_id not in chat_participants:
         raise HTTPException(status_code=403, detail='You have no access in this chat')
 
-    time = int(datetime.datetime.timestamp(datetime.datetime.now()))  # current time in timestamp
-
-    message_db = db_man.create.message(user.token.user_id, request.chat_id, request.content, time, chat_participants)
+    message_db = db_man.create.message(user.token.user_id, request.chat_id, request.content, chat_participants)
 
     new_message = Message(**message_db)
 
-    await notify_new_message(new_message, chat_participants)
+    await ws_man.notify.new_message(new_message, chat_participants)
 
     return {'ok': True}
 
@@ -112,31 +122,27 @@ async def start_chat(user_id: int, user: Annotated[User, Depends(authenticate_us
 
     chat = ChatView(**chat_db)
 
-    await notify_new_chat(chat)
+    await ws_man.notify.new_chat(chat)
 
     return {'ok': True}
 
 
-# todo get_usernames()
-# todo along with registration and login you should give userId so that Client be able to verify
-# whether some message his or not
-
 @router.websocket("/websocket_connection/")
 async def websocket_endpoint(websocket: WebSocket) -> None:  # , user: Annotated[User, Depends(authenticate_user_ws)]
     # print(user)
-    await connect(websocket)
+    await ws_man.connect(websocket)
     try:
         await websocket.send_text('{"info":"Provide your Bearer token"}')
         data = await websocket.receive_text()
 
-        await authenticate_ws(websocket, data)
+        await ws_man.authenticate_ws(websocket, data)
 
         await websocket.send_text('{"info":"Auth succeeded"}')
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        disconnect(websocket)
+        ws_man.disconnect(websocket)
     except Exception as e:
         await websocket.send_text('{"error":{error}}'.format(error=e))
-        disconnect(websocket)
+        ws_man.disconnect(websocket)
         await websocket.close()

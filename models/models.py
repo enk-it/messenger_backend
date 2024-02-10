@@ -17,7 +17,7 @@ class PublicUser(BaseModel):
     last_login: int | None = None
     user_id: int
     is_online: bool | None = None
-    avatar_url: str
+    avatar_url: str | None = None
 
 
 class User(PublicUser):

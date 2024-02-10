@@ -207,7 +207,7 @@ ORDER BY public.messages.message_id DESC;"""
         """gets one's user_id and returns his interlocutor's username. Works only in private chats"""
         users = self.chat_participants(chat_id)
         if len(users) != 2:
-            raise Exception('Critical Chat Error. Private chat doenst have 2 users')
+            raise Exception('Critical Chat Error. Private chat doesnt have 2 users')
         users.remove(user_id)
         interlocutor_id = users[0]
 
@@ -275,8 +275,8 @@ class Exist:
         if users_private_chat == set():
             return False
 
-        if len(users_private_chat) > 1:
-            raise Exception('More than one private chat for current users')
+        # if len(users_private_chat) > 1:
+        #     raise Exception('More than one private chat for current users')
 
         return True
 

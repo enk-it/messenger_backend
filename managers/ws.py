@@ -49,9 +49,8 @@ class Notify:
             participant_wss = _get_user_ws(participant, self.current_connections)
             connections.extend(participant_wss)
 
-        data = WsNewChat(chat=new_chat)
-
         for connection in connections:
+            data = WsNewChat(chat=db_man.get.chat_db(new_chat.chat_id, connection.user.user_id))
             await connection.websocket.send_text(data.model_dump_json())
 
 

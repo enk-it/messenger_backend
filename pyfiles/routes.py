@@ -10,17 +10,21 @@ from models.response import ResponseBearerToken, ResponseChats, ResponseMessages
 from models.models import User, Token, WsUser, Message, ChatView, PublicUser, JPEGImage
 
 from pyfiles.utils import generate_name, generate_token
-
 from typing import Annotated
 from PIL import Image
 import io
+import os
 
 router = APIRouter()
 
 
 @router.get("/share/avatar/{url}")
 async def get_avatar(url: str) -> FileResponse:
-    return FileResponse('./share/' + url)
+    if url not in os.listdir():
+        # raise HTTPException(status_code=404, detail='No image with this url exists')
+        url = 'avatar.png'
+    response = FileResponse('./share/' + url)
+    return response
 
 
 @router.post("/set_avatar/")
@@ -111,6 +115,9 @@ async def send_message(request: SendData, user: Annotated[User, Depends(authenti
 async def start_chat(user_id: int, user: Annotated[User, Depends(authenticate_user)]):
     user_1 = user_id
     user_2 = user.user_id
+
+    if user_1 == user_2:
+        raise HTTPException(status_code=400, detail="You cannot start chat with yourself")
 
     if not db_man.exist.user(user_1):
         raise HTTPException(status_code=400, detail='This user doesnt exist')

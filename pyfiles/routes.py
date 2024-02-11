@@ -148,7 +148,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:  # , user: Annotated
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        print('disconnected')
         ws_man.disconnect(websocket)
+        await websocket.close()
     except Exception as e:
         await websocket.send_text('{"error":{error}}'.format(error=e))
         ws_man.disconnect(websocket)

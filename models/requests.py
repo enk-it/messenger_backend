@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 
 class RegisterData(BaseModel):
-    username: str = Field(min_length=6, max_length=24, description='Username field. Cant have any whitespaces at all-')
+    username: str
     hashed_password: str
     client_id: str
 
@@ -15,6 +15,8 @@ class RegisterData(BaseModel):
             raise HTTPException(status_code=400, detail='Username can not be empty')
         if ' ' in username or '\n' in username:
             raise HTTPException(status_code=400, detail='Username can not contain whitespaces')
+        if len(username) < 6:
+            raise HTTPException(status_code=400, detail='Username must have at least 6 characters')
         if db_man.exist.user(username=username):
             raise HTTPException(status_code=400, detail='This username is already taken')
         return self
@@ -45,6 +47,7 @@ class LoginData(BaseModel):
 
     @model_validator(mode='after')
     def check_username(self) -> 'LoginData':
+
         username = self.username
         if not username:
             raise HTTPException(status_code=400, detail='Username can not be empty')

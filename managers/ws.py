@@ -73,8 +73,9 @@ class Manager:
         await websocket.accept()
 
         self.current_connections.append(WsUser(websocket=websocket))
-        self.notify.current_connections = self.current_connections
-        self.get.current_connections = self.current_connections
+
+        # self.notify.current_connections = self.current_connections
+        # self.get.current_connections = self.current_connections
 
     async def authenticate_ws(self, websocket: WebSocket, data):  # data='Bearer TOKEN'
         try:
@@ -101,18 +102,24 @@ class Manager:
                 connection.user = user
                 connection.auth = True
                 break
-        self.notify.current_connections = self.current_connections
-        self.get.current_connections = self.current_connections
+
+        # self.notify.current_connections = self.current_connections
+        # self.get.current_connections = self.current_connections
 
     def disconnect(self, websocket: WebSocket):
-        new_current_connections = []
-        for connection in self.current_connections:
-            if connection.websocket != websocket:
-                new_current_connections.append(connection)
-        self.current_connections = new_current_connections
+        # new_current_connections = []
 
-        self.notify.current_connections = self.current_connections
-        self.get.current_connections = self.current_connections
+        index_to_pop = None
+
+        for i, connection in enumerate(self.current_connections):
+            if connection.websocket == websocket:
+                index_to_pop = i
+
+        # self.current_connections = new_current_connections
+        self.current_connections.pop(index_to_pop)
+
+        # self.notify.current_connections = self.current_connections
+        # self.get.current_connections = self.current_connections
 
 
 ws_man = Manager()

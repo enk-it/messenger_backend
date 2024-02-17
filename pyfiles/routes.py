@@ -57,8 +57,11 @@ async def login(request: LoginData) -> ResponseBearerToken:
 async def register(request: RegisterData) -> ResponseBearerToken:
     user_db = db_man.create.user(request.username, request.hashed_password)
     user = PublicUser(**user_db)
+
+
     token_db = db_man.create.token(user.user_id, request.client_id, generate_token())
     bearer_token = ResponseBearerToken(**token_db)
+
 
     return bearer_token
 

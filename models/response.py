@@ -30,3 +30,8 @@ class WsNewChat(BaseModel):
     info: str = 'newChat'
     chat: ChatView
 
+
+class WsMessageRead(BaseModel):
+    info: str = 'messageRead'
+    chat_id: int
+    message_id: int

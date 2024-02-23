@@ -96,7 +96,6 @@ async def get_messages(user: Annotated[User, Depends(authenticate_user)], chat_i
 
 # todo message editing.
 # todo message deleting.
-# todo message being read.
 
 
 @router.post("/send_message/")

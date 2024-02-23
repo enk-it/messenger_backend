@@ -124,7 +124,7 @@ class Get():
 
         return chat
 
-    def messages_db(self, user_id: int, chat_id: int, oldest_message_id: int = -1):
+    def messages_db(self, user_id: int, chat_id: int, oldest_message_id: int = -1) -> List[Any]:
         """returns list with messages, where each message contains fields: \n
         user_id, \n
         chat_id, \n
@@ -146,7 +146,7 @@ ORDER BY public.messages.message_id DESC;"""
 
         messages_cursor.execute(query)
         messages = []
-        statuses_cursor = self.connection.cursor()
+        # statuses_cursor = self.connection.cursor()
         for message in messages_cursor.fetchall():
             message = dict(message)
 
@@ -169,10 +169,10 @@ ORDER BY public.messages.message_id DESC;"""
         # messages = [dict(message) for message in cursor.fetchall()]
         # print(messages)
         messages_cursor.close()
-        statuses_cursor.close()
+        # statuses_cursor.close()
         return messages
 
-    def chat_participants(self, chat_id):
+    def chat_participants(self, chat_id: int) -> List[Any]:
         """takes chat_id and returns list with that chat's participant's ids"""
         cursor = self.connection.cursor()
         query = f"SELECT user_id FROM public.party WHERE chat_id={chat_id}"
@@ -188,7 +188,7 @@ ORDER BY public.messages.message_id DESC;"""
         else:
             return [i[0] for i in result]
 
-    def user_avatar_url(self, user_id):
+    def user_avatar_url(self, user_id: int) -> str:
         """returns avatar's url for current user"""
 
         cursor = self.connection.cursor()
@@ -203,7 +203,7 @@ ORDER BY public.messages.message_id DESC;"""
         cursor.close()
         return result
 
-    def __interlocutor_avatar_url(self, chat_id, user_id):
+    def __interlocutor_avatar_url(self, chat_id: int, user_id: int) -> str:
         """gets one's user_id and returns his interlocutor's username. Works only in private chats"""
         users = self.chat_participants(chat_id)
         if len(users) != 2:
@@ -214,7 +214,7 @@ ORDER BY public.messages.message_id DESC;"""
         interlocutor = self.user_db(user_id=interlocutor_id)
         return interlocutor['avatar_url']
 
-    def __interlocutor_username(self, chat_id, user_id):
+    def __interlocutor_username(self, chat_id: int, user_id: int) -> str:
         """gets one's user_id and returns his interlocutor's username. Works only in private chats"""
         users = self.chat_participants(chat_id)
         if len(users) != 2:
@@ -246,23 +246,26 @@ class Exist:
 
         return result is not None
 
-    def private_chat(self, user_1, user_2):
+    def private_chat(self, user_1: int, user_2: int) -> bool:
         cursor = self.connection.cursor()
 
-        query = f"SELECT chat_id from public.party WHERE user_id={user_1};"
-        cursor.execute(query)
+        query = "SELECT chat_id from public.party WHERE user_id=%s;"
+        data = (user_1, )
+        cursor.execute(query, data)
         user_1_chats = set(cursor.fetchall())
         if user_1_chats == set():
             return False
 
-        query = f"SELECT chat_id from public.party WHERE user_id={user_2};"
-        cursor.execute(query)
+        query = f"SELECT chat_id from public.party WHERE user_id=%s;"
+        data = (user_2, )
+        cursor.execute(query, data)
         user_2_chats = set(cursor.fetchall())
         if user_2_chats == set():
             return False
 
-        query = f"SELECT chat_id from public.chats WHERE is_private=true;"
-        cursor.execute(query)
+        query = f"SELECT chat_id from public.chats WHERE is_private=%s;"
+        data = (True, )
+        cursor.execute(query, data)
         private_chats = set(cursor.fetchall())
         if private_chats == set():
             return False
@@ -285,8 +288,8 @@ class Create:
     def __init__(self, connection):
         self.connection = connection
 
-    def user(self, username, hashed_password):
-        """creates new user and returns its user_id"""
+    def user(self, username: str, hashed_password: str) -> dict:
+        """creates new user and returns new user's data"""
         cursor = self.connection.cursor()
 
         date = int(datetime.datetime.timestamp(datetime.datetime.now()))
@@ -308,7 +311,7 @@ class Create:
 
         return result
 
-    def token(self, user_id, client_id, token):
+    def token(self, user_id: int, client_id: str, token: str) -> dict:
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         query = f"INSERT INTO public.tokens (token, user_id, client_id, is_disabled) VALUES (%s, %s, %s, %s)"
         data = (token, user_id, client_id, False)
@@ -325,7 +328,7 @@ class Create:
 
         return result
 
-    def message(self, user_id, chat_id, content, chat_participants):
+    def message(self, user_id: int, chat_id: int, content: str, chat_participants: List) -> dict:
         time = int(datetime.datetime.timestamp(datetime.datetime.now()))
 
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -351,7 +354,7 @@ class Create:
 
         return result
 
-    def chat(self, user_1, user_2):
+    def chat(self, user_1: int, user_2: int) -> dict:
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         new_chat_id = self.__last_chat_id() + 1
@@ -378,7 +381,7 @@ class Create:
 
         return result
 
-    def __last_message_id(self, chat_id):
+    def __last_message_id(self, chat_id: int) -> int:
         cursor = self.connection.cursor()
 
         query = f"SELECT message_id FROM public.messages WHERE chat_id={chat_id} ORDER BY message_id DESC fetch first 1 rows only;"
@@ -391,7 +394,7 @@ class Create:
         else:
             return result[0]
 
-    def __last_chat_id(self):
+    def __last_chat_id(self) -> int:
         cursor = self.connection.cursor()
 
         query = f"SELECT chat_id FROM public.chats ORDER BY chat_id DESC fetch first 1 rows only;"
@@ -409,12 +412,23 @@ class Update:
     def __init__(self, connection):
         self.connection = connection
 
-    def user_avatar(self, user_id, file_name):
+    def user_avatar(self, user_id: int, file_name: str) -> None:
         cursor = self.connection.cursor()
 
         query = "UPDATE public.users SET avatar_url=%s WHERE user_id=%s;"
 
         data = (file_name, user_id)
+
+        cursor.execute(query, data)
+        cursor.close()
+        self.connection.commit()
+
+    def message_read(self, user_id: int, chat_id: int, message_id: int) -> None:
+        cursor = self.connection.cursor()
+
+        query = "UPDATE public.statuses SET is_read=%s WHERE user_id=%s AND chat_id=%s AND message_id=%s"
+
+        data = (True, user_id, chat_id, message_id)
 
         cursor.execute(query, data)
         cursor.close()

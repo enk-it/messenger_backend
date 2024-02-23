@@ -80,3 +80,7 @@ class SendData(BaseModel):
     chat_id: int
     content: str
 
+
+class ReadData(BaseModel):
+    chat_id: int
+    message_id: int

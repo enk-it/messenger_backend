@@ -1,6 +1,7 @@
 from pydantic import BaseModel, model_validator, Field
 from managers.db import db_man
 from fastapi import HTTPException
+from typing import List
 
 
 class RegisterData(BaseModel):
@@ -83,4 +84,5 @@ class SendData(BaseModel):
 
 class ReadData(BaseModel):
     chat_id: int
-    message_id: int
+    messages_ids: List[int]
+    users_ids: List[int]

@@ -124,9 +124,9 @@ async def read_message(request: ReadData, user: Annotated[User, Depends(authenti
     if user.token.user_id not in chat_participants:
         raise HTTPException(status_code=403, detail='You have no access in this chat')
 
-    db.update.message_read(user.token.user_id, request.chat_id, request.message_id)
+    db.update.message_read(user.token.user_id, request.chat_id, request.messages_ids, request.users_ids)
 
-    await ws_man.notify.message_read(request.message_id, request.chat_id, chat_participants)
+    await ws_man.notify.message_read(user.token.user_id, request.chat_id, request.messages_ids, request.users_ids)
 
     return {'ok': True}
 

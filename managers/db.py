@@ -423,14 +423,16 @@ class Update:
         cursor.close()
         self.connection.commit()
 
-    def message_read(self, user_id: int, chat_id: int, message_id: int) -> None:
+    def message_read(self, reader_id: int, chat_id: int, messages_ids: list, messages_owners_ids: list) -> None:
         cursor = self.connection.cursor()
 
-        query = "UPDATE public.statuses SET is_read=%s WHERE user_id=%s AND chat_id=%s AND message_id=%s"
+        for message_id, owner_id in zip(messages_ids, messages_owners_ids):
+            query = "UPDATE public.statuses SET is_read=%s WHERE user_id=%s AND chat_id=%s AND message_id=%s"
+            data = (True, reader_id, chat_id, message_id)
+            cursor.execute(query, data)
+            data = (True, owner_id, chat_id, message_id)
+            cursor.execute(query, data)
 
-        data = (True, user_id, chat_id, message_id)
-
-        cursor.execute(query, data)
         cursor.close()
         self.connection.commit()
 

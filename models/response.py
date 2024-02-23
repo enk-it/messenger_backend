@@ -32,6 +32,6 @@ class WsNewChat(BaseModel):
 
 
 class WsMessageRead(BaseModel):
-    info: str = 'messageRead'
+    info: str = 'messagesRead'
     chat_id: int
-    message_id: int
+    messages_ids: List[int]

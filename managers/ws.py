@@ -53,18 +53,28 @@ class Notify:
             data = WsNewChat(chat=db_man.get.chat_db(new_chat.chat_id, connection.user.user_id))
             await connection.websocket.send_text(data.model_dump_json())
 
-    async def message_read(self, message_id: int, chat_id: int, chat_participants: List) -> None:
-        # testing is needed
-        connections = []
+    async def message_read(self, reader_id: int, chat_id: int, messages_ids: List[int], messages_owners_ids: List[int]) -> None:
+        reader_wss = _get_user_ws(reader_id, self.current_connections)
+        reader_data = WsMessageRead(messages_ids=messages_ids, chat_id=chat_id)
+        for connection in reader_wss:
+            await connection.websocket.send_text(reader_data.model_dump_json())
 
-        for participant in chat_participants:
+        owners_wss = []
+        owners_stacked = {i:[] for i in set(messages_owners_ids)}
+
+        for message_id, owner_id in zip(messages_ids, messages_owners_ids):
+            owners_stacked[owner_id].append(message_id)
+
+        for participant in owners_stacked:
             participant_wss = _get_user_ws(participant, self.current_connections)
-            connections.extend(participant_wss)
+            owners_wss.extend(participant_wss)
 
-        data = WsMessageRead(message_id=message_id, chat_id=chat_id)
-
-        for connection in connections:
-            await connection.websocket.send_text(data.model_dump_json())
+        # refactoring is needed
+        for owner_id in owners_stacked:
+            for owner_ws in owners_wss:
+                if owner_id == owner_ws.user.user_id:
+                    owner_data = WsMessageRead(messages_ids=owners_stacked[owner_id], chat_id=chat_id)
+                    await owner_ws.websocket.send_text(owner_data.model_dump_json())
 
 
 class Get:

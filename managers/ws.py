@@ -1,11 +1,11 @@
-from models.models import WsUser, User, Token
-from models.response import WsNewMessage, WsNewChat
+from models.models import WsUser, User, Token, Message, ChatView
+from models.response import WsNewMessage, WsNewChat, WsMessageRead
 from fastapi import WebSocket
 from typing import List
 from managers.db import db_man
 
 
-def _get_user_ws(user_id, current_connections) -> List[WsUser]:
+def _get_user_ws(user_id: int, current_connections: List) -> List[WsUser]:
     connections = []
 
     for connection in current_connections:
@@ -15,7 +15,7 @@ def _get_user_ws(user_id, current_connections) -> List[WsUser]:
     return connections
 
 
-def _get_online_users(current_connections) -> List[int]:
+def _get_online_users(current_connections: List) -> List[int]:
     users_id = set()
     for connection in current_connections:
         users_id.add(connection.user.token.user_id)
@@ -26,7 +26,7 @@ class Notify:
     def __init__(self, current_connections):
         self.current_connections = current_connections
 
-    async def new_message(self, new_message, chat_participants):
+    async def new_message(self, new_message: Message, chat_participants: List) -> None:
         connections = []
 
         for participant in chat_participants:
@@ -40,7 +40,7 @@ class Notify:
 
             await connection.websocket.send_text(data.model_dump_json())
 
-    async def new_chat(self, new_chat):
+    async def new_chat(self, new_chat: ChatView) -> None:
         connections = []
 
         chat_participants = db_man.get.chat_participants(new_chat.chat_id)
@@ -53,12 +53,26 @@ class Notify:
             data = WsNewChat(chat=db_man.get.chat_db(new_chat.chat_id, connection.user.user_id))
             await connection.websocket.send_text(data.model_dump_json())
 
+    async def message_read(self, message_id: int, chat_id: int, chat_participants: List) -> None:
+        # testing is needed
+        connections = []
+
+        for participant in chat_participants:
+            participant_wss = _get_user_ws(participant, self.current_connections)
+            connections.extend(participant_wss)
+
+        data = WsMessageRead(message_id=message_id, chat_id=chat_id)
+
+        for connection in connections:
+            await connection.websocket.send_text(data.model_dump_json())
+
 
 class Get:
     def __init__(self, current_connections):
         self.current_connections = current_connections
 
-    def online_users(self):
+    def online_users(self) -> List[int]:
+        """returns ids of currently on-line users"""
         return _get_online_users(self.current_connections)
 
 

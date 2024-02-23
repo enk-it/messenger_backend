@@ -44,7 +44,6 @@ class Message(BaseModel):
     datetime: int
 
     incoming: bool | None = None
-
     is_read: bool
 
 

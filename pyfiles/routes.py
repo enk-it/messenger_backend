@@ -1,11 +1,11 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile
 from fastapi.responses import FileResponse
 
-from managers.db import db_man
+from managers.db import db_man as db
 from managers.ws import ws_man
 from managers.auth import authenticate_user
 
-from models.requests import RegisterData, LoginData, SendData
+from models.requests import RegisterData, LoginData, SendData, ReadData
 from models.response import ResponseBearerToken, ResponseChats, ResponseMessages, ResponseUsers
 from models.models import User, Token, WsUser, Message, ChatView, PublicUser, JPEGImage
 
@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.get("/share/avatar/{url}")
 async def get_avatar(url: str) -> FileResponse:
-    if url not in os.listdir():
+    if url not in os.listdir('./share/'):
         # raise HTTPException(status_code=404, detail='No image with this url exists')
         url = 'avatar.png'
     response = FileResponse('./share/' + url)
@@ -39,15 +39,15 @@ async def set_avatar(file: UploadFile, user: Annotated[User, Depends(authenticat
 
     filename = generate_name() + '.jpg'
     pil_image.save('./share/' + filename)
-    db_man.update.user_avatar(user_id=user.token.user_id, avatar=filename)
+    db.update.user_avatar(user_id=user.token.user_id, avatar=filename)
 
     return {'ok': True, 'filename': filename}
 
 
 @router.post("/login/")
 async def login(request: LoginData) -> ResponseBearerToken:
-    user = User(**db_man.get.user_db(request.username, request.hashed_password))
-    token_db = db_man.create.token(user.user_id, request.client_id, generate_token())
+    user = User(**db.get.user_db(request.username, request.hashed_password))
+    token_db = db.create.token(user.user_id, request.client_id, generate_token())
     bearer_token = ResponseBearerToken(**token_db)
 
     return bearer_token  # {"token": bearer_token}
@@ -55,25 +55,23 @@ async def login(request: LoginData) -> ResponseBearerToken:
 
 @router.post("/register/")
 async def register(request: RegisterData) -> ResponseBearerToken:
-    user_db = db_man.create.user(request.username, request.hashed_password)
+    user_db = db.create.user(request.username, request.hashed_password)
     user = PublicUser(**user_db)
 
-
-    token_db = db_man.create.token(user.user_id, request.client_id, generate_token())
+    token_db = db.create.token(user.user_id, request.client_id, generate_token())
     bearer_token = ResponseBearerToken(**token_db)
-
 
     return bearer_token
 
 
 @router.get("/get_chats/")
 async def get_chats(user: Annotated[User, Depends(authenticate_user)]) -> ResponseChats:
-    return ResponseChats(chats=db_man.get.chats_db(user_id=user.token.user_id))
+    return ResponseChats(chats=db.get.chats_db(user_id=user.token.user_id))
 
 
 @router.get("/get_users/")
 async def get_users(user: Annotated[User, Depends(authenticate_user)]) -> ResponseUsers:
-    users_data = db_man.get.users_db()
+    users_data = db.get.users_db()
     online_users = ws_man.get.online_users()
 
     response = ResponseUsers(users=users_data)
@@ -90,10 +88,15 @@ async def get_users(user: Annotated[User, Depends(authenticate_user)]) -> Respon
 @router.get("/get_messages/")
 async def get_messages(user: Annotated[User, Depends(authenticate_user)], chat_id: int,
                        oldest_message_id: int = -1) -> ResponseMessages:
-    messages = db_man.get.messages_db(user_id=user.token.user_id, chat_id=chat_id, oldest_message_id=oldest_message_id)
+    messages = db.get.messages_db(user_id=user.token.user_id, chat_id=chat_id, oldest_message_id=oldest_message_id)
     response = ResponseMessages(messages=messages)
 
     return response
+
+
+# todo message editing.
+# todo message deleting.
+# todo message being read.
 
 
 @router.post("/send_message/")
@@ -101,15 +104,29 @@ async def send_message(request: SendData, user: Annotated[User, Depends(authenti
     if not request.content:
         raise HTTPException(status_code=400, detail="Empty messages are not allowed")
 
-    chat_participants = db_man.get.chat_participants(request.chat_id)
+    chat_participants = db.get.chat_participants(request.chat_id)
     if user.token.user_id not in chat_participants:
         raise HTTPException(status_code=403, detail='You have no access in this chat')
 
-    message_db = db_man.create.message(user.token.user_id, request.chat_id, request.content, chat_participants)
+    message_db = db.create.message(user.token.user_id, request.chat_id, request.content, chat_participants)
 
     new_message = Message(**message_db)
 
     await ws_man.notify.new_message(new_message, chat_participants)
+
+    return {'ok': True}
+
+
+@router.post("/read_message/")
+async def read_message(request: ReadData, user: Annotated[User, Depends(authenticate_user)]):
+    # rework to list usage
+    chat_participants = db.get.chat_participants(request.chat_id)
+    if user.token.user_id not in chat_participants:
+        raise HTTPException(status_code=403, detail='You have no access in this chat')
+
+    db.update.message_read(user.token.user_id, request.chat_id, request.message_id)
+
+    await ws_man.notify.message_read(request.message_id, request.chat_id, chat_participants)
 
     return {'ok': True}
 
@@ -122,13 +139,13 @@ async def start_chat(user_id: int, user: Annotated[User, Depends(authenticate_us
     if user_1 == user_2:
         raise HTTPException(status_code=400, detail="You cannot start chat with yourself")
 
-    if not db_man.exist.user(user_1):
+    if not db.exist.user(user_1):
         raise HTTPException(status_code=400, detail='This user doesnt exist')
 
-    if db_man.exist.private_chat(user_1, user_2):
+    if db.exist.private_chat(user_1, user_2):
         raise HTTPException(status_code=400, detail='This chat already exist')
 
-    chat_db = db_man.create.chat(user_id, user.token.user_id)
+    chat_db = db.create.chat(user_id, user.token.user_id)
 
     chat = ChatView(**chat_db)
 

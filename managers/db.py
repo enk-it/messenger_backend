@@ -21,7 +21,7 @@ class Manager:
         #                                    port="5432",
         #                                    dbname="messenger")
         self.connection = psycopg2.connect(user="bristleback",
-                                           password="swass",
+                                           password="B*;Mu?fDbj&M>YjD0D]J",
                                            host="localhost",
                                            port="5432",
                                            dbname="enkitmessenger")

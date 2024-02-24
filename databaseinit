@@ -1,0 +1,88 @@
+CREATE TABLE IF NOT EXISTS public.chats
+(
+    chat_id integer,
+    title text COLLATE pg_catalog."default",
+    is_private boolean,
+    avatar_url text COLLATE pg_catalog."default"
+);
+
+
+ALTER TABLE IF EXISTS public.chats
+    OWNER to bristleback;
+
+CREATE TABLE IF NOT EXISTS public.messages
+(
+    message_id integer,
+    chat_id integer,
+    user_id integer,
+    content text COLLATE pg_catalog."default",
+    datetime integer
+);
+
+
+ALTER TABLE IF EXISTS public.messages
+    OWNER to bristleback;
+
+CREATE TABLE IF NOT EXISTS public.party
+(
+    chat_id integer,
+    user_id integer
+);
+
+
+ALTER TABLE IF EXISTS public.party
+    OWNER to bristleback;
+
+CREATE TABLE IF NOT EXISTS public.statuses
+(
+    user_id integer,
+    chat_id integer,
+    message_id integer,
+    is_deleted boolean,
+    is_read boolean
+);
+
+
+ALTER TABLE IF EXISTS public.statuses
+    OWNER to bristleback;
+
+CREATE TABLE IF NOT EXISTS public.tokens
+(
+    token text COLLATE pg_catalog."default",
+    user_id integer,
+    client_id text COLLATE pg_catalog."default",
+    is_disabled boolean
+);
+
+
+ALTER TABLE IF EXISTS public.tokens
+    OWNER to bristleback;
+
+
+CREATE SEQUENCE IF NOT EXISTS public.users_user_id_seq
+    INCREMENT 1
+    START 1
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1;
+
+ALTER SEQUENCE public.users_user_id_seq
+    OWNER TO bristleback;
+
+
+
+CREATE TABLE IF NOT EXISTS public.users
+(
+    username text COLLATE pg_catalog."default",
+    last_login integer,
+    hashed_password text COLLATE pg_catalog."default",
+    user_id integer NOT NULL DEFAULT nextval('users_user_id_seq'::regclass),
+    avatar_url text COLLATE pg_catalog."default" NOT NULL DEFAULT 'avatar.png'::text
+);
+
+ALTER TABLE IF EXISTS public.users
+    OWNER to bristleback;
+
+ALTER SEQUENCE public.users_user_id_seq
+    OWNED BY users.user_id;
+

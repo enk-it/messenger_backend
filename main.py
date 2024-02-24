@@ -29,9 +29,10 @@ app.add_middleware(
 )
 
 app.include_router(router)
+# uvicorn.run(app, host="192.168.0.12", port=8000, ws_ping_interval=1000, ws_ping_timeout=500)  # debug
 
 if __name__ == "__main__":
     # uvicorn.run(app, host="127.0.0.1", port=8000)
-    uvicorn.run(app, host="192.168.0.12", port=8000, ws_ping_interval=1000, ws_ping_timeout=500) # debug
+    # uvicorn.run(app, host="192.168.0.12", port=8000, ws_ping_interval=1000, ws_ping_timeout=500) # debug
+    uvicorn.run(app, host="178.20.46.199", port=80, ws_ping_interval=1000, ws_ping_timeout=500) # production
     # uvicorn.run(app, host="192.168.0.17", port=8000, ws_ping_interval=1000, ws_ping_timeout=500) # production
-#

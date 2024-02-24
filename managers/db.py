@@ -7,17 +7,24 @@ import datetime
 
 class Manager:
     def __init__(self):
+        #local prod
         # self.connection = psycopg2.connect(user="silencer",
         #                                    password="swassswass",
         #                                    host="127.0.0.1",
         #                                    port="5432",
         #                                    dbname="messenger")
 
-        self.connection = psycopg2.connect(user="jakiro",
+        #local debug
+        # self.connection = psycopg2.connect(user="jakiro",
+        #                                    password="swass",
+        #                                    host="192.168.0.17",
+        #                                    port="5432",
+        #                                    dbname="messenger")
+        self.connection = psycopg2.connect(user="bristleback",
                                            password="swass",
-                                           host="192.168.0.17",
+                                           host="localhost",
                                            port="5432",
-                                           dbname="messenger")
+                                           dbname="enkitmessenger")
 
         cursor = self.connection.cursor()
         print("Информация о сервере PostgreSQL")

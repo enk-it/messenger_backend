@@ -5,18 +5,20 @@ from pyfiles.routes import router
 
 app = FastAPI()
 
+# origins = [
+#     "http://localhost",
+#     "http://localhost:8080",
+#     "http://localhost:3000",
+#     "http://192.168.0.12:8000",
+#     "http://192.168.0.12:3000",
+#     "http://192.168.0.17:8000",
+#     "http://192.168.0.17:3000"
+# ]
+
 origins = [
-    "http://localhost",
-
-    "http://localhost:8080",
-    "http://localhost:3000",
-
-    "http://192.168.0.12:8000",
-    "http://192.168.0.12:3000",
-
-    "http://192.168.0.17:8000",
-    "http://192.168.0.17:3000"
+    "*"
 ]
+
 
 app.add_middleware(
     CORSMiddleware,

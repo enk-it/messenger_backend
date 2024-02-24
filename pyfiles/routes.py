@@ -18,7 +18,7 @@ import os
 router = APIRouter()
 
 
-@router.get("/share/avatar/{url}")
+@router.get("/api/share/avatar/{url}")
 async def get_avatar(url: str) -> FileResponse:
     if url not in os.listdir('./share/'):
         # raise HTTPException(status_code=404, detail='No image with this url exists')
@@ -27,7 +27,7 @@ async def get_avatar(url: str) -> FileResponse:
     return response
 
 
-@router.post("/set_avatar/")
+@router.post("/api/set_avatar/")
 async def set_avatar(file: UploadFile, user: Annotated[User, Depends(authenticate_user)]):
     image = JPEGImage(file=file)
     contents = await image.file.read()
@@ -44,7 +44,7 @@ async def set_avatar(file: UploadFile, user: Annotated[User, Depends(authenticat
     return {'ok': True, 'filename': filename}
 
 
-@router.post("/login/")
+@router.post("/api/login/")
 async def login(request: LoginData) -> ResponseBearerToken:
     user = User(**db.get.user_db(request.username, request.hashed_password))
     token_db = db.create.token(user.user_id, request.client_id, generate_token())
@@ -53,7 +53,7 @@ async def login(request: LoginData) -> ResponseBearerToken:
     return bearer_token  # {"token": bearer_token}
 
 
-@router.post("/register/")
+@router.post("/api/register/")
 async def register(request: RegisterData) -> ResponseBearerToken:
     user_db = db.create.user(request.username, request.hashed_password)
     user = PublicUser(**user_db)
@@ -64,12 +64,12 @@ async def register(request: RegisterData) -> ResponseBearerToken:
     return bearer_token
 
 
-@router.get("/get_chats/")
+@router.get("/api/get_chats/")
 async def get_chats(user: Annotated[User, Depends(authenticate_user)]) -> ResponseChats:
     return ResponseChats(chats=db.get.chats_db(user_id=user.token.user_id))
 
 
-@router.get("/get_users/")
+@router.get("/api/get_users/")
 async def get_users(user: Annotated[User, Depends(authenticate_user)]) -> ResponseUsers:
     users_data = db.get.users_db()
     online_users = ws_man.get.online_users()
@@ -85,7 +85,7 @@ async def get_users(user: Annotated[User, Depends(authenticate_user)]) -> Respon
     # return ResponseUsers(chats=get_chats_db(user_id=user.token.user_id))
 
 
-@router.get("/get_messages/")
+@router.get("/api/get_messages/")
 async def get_messages(user: Annotated[User, Depends(authenticate_user)], chat_id: int,
                        oldest_message_id: int = -1) -> ResponseMessages:
     messages = db.get.messages_db(user_id=user.token.user_id, chat_id=chat_id, oldest_message_id=oldest_message_id)
@@ -98,7 +98,7 @@ async def get_messages(user: Annotated[User, Depends(authenticate_user)], chat_i
 # todo message deleting.
 
 
-@router.post("/send_message/")
+@router.post("/api/send_message/")
 async def send_message(request: SendData, user: Annotated[User, Depends(authenticate_user)]):
     if not request.content:
         raise HTTPException(status_code=400, detail="Empty messages are not allowed")
@@ -116,7 +116,7 @@ async def send_message(request: SendData, user: Annotated[User, Depends(authenti
     return {'ok': True}
 
 
-@router.post("/read_message/")
+@router.post("/api/read_message/")
 async def read_message(request: ReadData, user: Annotated[User, Depends(authenticate_user)]):
     # rework to list usage
     chat_participants = db.get.chat_participants(request.chat_id)
@@ -130,7 +130,7 @@ async def read_message(request: ReadData, user: Annotated[User, Depends(authenti
     return {'ok': True}
 
 
-@router.get("/start_chat/")
+@router.get("/api/start_chat/")
 async def start_chat(user_id: int, user: Annotated[User, Depends(authenticate_user)]):
     user_1 = user_id
     user_2 = user.user_id
@@ -153,7 +153,7 @@ async def start_chat(user_id: int, user: Annotated[User, Depends(authenticate_us
     return {'ok': True}
 
 
-@router.websocket("/websocket_connection/")
+@router.websocket("/api/websocket_connection/")
 async def websocket_endpoint(websocket: WebSocket) -> None:  # , user: Annotated[User, Depends(authenticate_user_ws)]
     # print(user)
     await ws_man.connect(websocket)

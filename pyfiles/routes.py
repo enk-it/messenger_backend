@@ -153,7 +153,7 @@ async def start_chat(user_id: int, user: Annotated[User, Depends(authenticate_us
     return {'ok': True}
 
 
-@router.websocket("/api/websocket_connection/")
+@router.websocket("/api_ws/websocket_connection/")
 async def websocket_endpoint(websocket: WebSocket) -> None:  # , user: Annotated[User, Depends(authenticate_user_ws)]
     # print(user)
     await ws_man.connect(websocket)

@@ -1,0 +1,19 @@
+server {
+        server_name messenger.enkit.ru www.messenger.enkit.ru;
+        listen 443 ssl;
+	    ssl_certificate /etc/letsencrypt/live/messenger.enkit.ru/fullchain.pem;
+	    ssl_certificate_key /etc/letsencrypt/live/messenger.enkit.ru/privkey.pem;
+	    location ~ ^/api_ws/ {
+          proxy_pass http://localhost:4000;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "Upgrade";
+          proxy_set_header Host $host;
+        }
+        location ~ ^/api/ {
+         proxy_pass http://localhost:4000;
+        }
+        location / {
+         proxy_pass http://localhost:3000;
+        }
+}

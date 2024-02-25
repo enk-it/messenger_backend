@@ -46,7 +46,12 @@ async def set_avatar(file: UploadFile, user: Annotated[User, Depends(authenticat
 
 @router.post("/api/login/")
 async def login(request: LoginData) -> ResponseBearerToken:
-    user = User(**db.get.user_db(request.username, request.hashed_password))
+    if not db.exist.user(username=request.username):
+        raise HTTPException(status_code=400, detail='User with this username does not exists.')
+    try:
+        user = User(**db.get.user_db(request.username, request.hashed_password))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail='Wrong password.')
     token_db = db.create.token(user.user_id, request.client_id, generate_token())
     bearer_token = ResponseBearerToken(**token_db)
 
@@ -55,6 +60,8 @@ async def login(request: LoginData) -> ResponseBearerToken:
 
 @router.post("/api/register/")
 async def register(request: RegisterData) -> ResponseBearerToken:
+    if db.exist.user(username=request.username):
+        raise HTTPException(status_code=400, detail='User with this username already exists.')
     user_db = db.create.user(request.username, request.hashed_password)
     user = PublicUser(**user_db)
 

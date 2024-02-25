@@ -237,15 +237,13 @@ class Exist:
     def __init__(self, connection):
         self.connection = connection
 
-    def user(self, user_id: int = None, username: str = None, email: str = None) -> bool:
+    def user(self, user_id: int = None, username: str = None) -> bool:
         cursor = self.connection.cursor()
 
         if user_id is not None:
             query = f"SELECT * FROM public.users WHERE user_id={user_id}"
         elif username is not None:
             query = f"SELECT * FROM public.users WHERE username='{username}'"
-        elif email is not None:
-            query = f"SELECT * FROM public.users WHERE email='{email}'"
 
         cursor.execute(query)
         result = cursor.fetchone()

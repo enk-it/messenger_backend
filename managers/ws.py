@@ -9,7 +9,7 @@ def _get_user_ws(user_id: int, current_connections: List) -> List[WsUser]:
     connections = []
 
     for connection in current_connections:
-        if connection.user.token.user_id == user_id and connection.auth:
+        if connection.user.token is not None and connection.user.token.user_id == user_id and connection.auth:
             connections.append(connection)
 
     return connections

@@ -4,8 +4,8 @@ After=multi-user.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/jakiro/messenger_backend/
-ExecStart=/home/jakiro/messenger_backend/venv/bin/python3 main.py
+WorkingDirectory=/home/messenger_backend/
+ExecStart=/home/messenger_backend/venv/bin/python3.11 main.py
 Restart=always
 
 [Install]

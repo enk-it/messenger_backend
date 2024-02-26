@@ -1,4 +1,11 @@
 server {
+     listen 80;
+     server_name messenger.enkit.ru www.messenger.enkit.ru;
+     return 301 https://$host$request_uri;
+}
+
+
+server {
         server_name messenger.enkit.ru www.messenger.enkit.ru;
         listen 443 ssl;
 	    ssl_certificate /etc/letsencrypt/live/messenger.enkit.ru/fullchain.pem;
